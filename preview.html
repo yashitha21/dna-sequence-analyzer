@@ -1,0 +1,1516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>GeneTrace — DNA Pattern Search & Mutation Detection</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/framer-motion@11.0.8/dist/framer-motion.js"></script>
+<script src="https://unpkg.com/recharts@2.10.3/umd/Recharts.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['Poppins', 'sans-serif'],
+        mono: ['JetBrains Mono', 'monospace'],
+        display: ['Space Grotesk', 'sans-serif'],
+      },
+      colors: {
+        bg: '#020617',
+        cyan: { glow: '#06B6D4' },
+        purple: { glow: '#8B5CF6' },
+      },
+      animation: {
+        'pulse-glow': 'pulseGlow 2s ease-in-out infinite',
+        'spin-slow': 'spin 8s linear infinite',
+        'float': 'float 6s ease-in-out infinite',
+      },
+    },
+  },
+};
+</script>
+<style>
+  * { -webkit-font-smoothing: antialiased; }
+  html, body { background: #020617; color: #F8FAFC; font-family: 'Poppins', sans-serif; scroll-behavior: smooth; }
+  body { overflow-x: hidden; }
+
+  /* Animated grid background */
+  .bg-grid {
+    background-image:
+      linear-gradient(rgba(6,182,212,0.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(6,182,212,0.07) 1px, transparent 1px);
+    background-size: 60px 60px;
+    background-position: -1px -1px;
+  }
+
+  .glass {
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  .glass-strong {
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(24px);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+  }
+
+  .glow-cyan { box-shadow: 0 0 30px rgba(6,182,212,0.35), inset 0 0 20px rgba(6,182,212,0.05); }
+  .glow-purple { box-shadow: 0 0 30px rgba(139,92,246,0.35), inset 0 0 20px rgba(139,92,246,0.05); }
+
+  .text-glow-cyan { text-shadow: 0 0 20px rgba(6,182,212,0.6); }
+  .text-glow-purple { text-shadow: 0 0 20px rgba(139,92,246,0.6); }
+
+  .gradient-text {
+    background: linear-gradient(135deg, #06B6D4 0%, #8B5CF6 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  @keyframes pulseGlow {
+    0%, 100% { opacity: 1; box-shadow: 0 0 20px rgba(6,182,212,0.5); }
+    50% { opacity: 0.85; box-shadow: 0 0 40px rgba(6,182,212,0.8); }
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-20px); }
+  }
+
+  /* Particles */
+  .particle {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    opacity: 0.4;
+  }
+
+  /* DNA helix svg styles */
+  .dna-base { transition: all 0.3s; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: #020617; }
+  ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #06B6D4, #8B5CF6); border-radius: 10px; }
+
+  /* Glow buttons */
+  .btn-primary {
+    background: linear-gradient(135deg, #06B6D4, #8B5CF6);
+    box-shadow: 0 4px 20px rgba(6,182,212,0.4);
+    transition: all 0.3s;
+  }
+  .btn-primary:hover {
+    box-shadow: 0 6px 30px rgba(139,92,246,0.6);
+    transform: translateY(-2px);
+  }
+
+  /* Step highlight pulse */
+  @keyframes flashYellow {
+    0% { background-color: rgba(250, 204, 21, 0.9); }
+    100% { background-color: rgba(250, 204, 21, 0.3); }
+  }
+  .flash-current { animation: flashYellow 0.6s ease-out; }
+
+  .base-cell {
+    width: 36px; height: 44px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: 'JetBrains Mono', monospace; font-weight: 600;
+    border-radius: 6px; margin: 2px;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(148, 163, 184, 0.15);
+    position: relative;
+  }
+  @media (max-width: 640px) {
+    .base-cell { width: 28px; height: 36px; font-size: 12px; }
+  }
+
+  .base-A { color: #34d399; }
+  .base-T { color: #f87171; }
+  .base-G { color: #facc15; }
+  .base-C { color: #60a5fa; }
+
+  .match { background: rgba(34, 197, 94, 0.25); border-color: rgba(34, 197, 94, 0.6); box-shadow: 0 0 12px rgba(34, 197, 94, 0.4); }
+  .mismatch { background: rgba(239, 68, 68, 0.25); border-color: rgba(239, 68, 68, 0.6); box-shadow: 0 0 12px rgba(239, 68, 68, 0.4); }
+  .current { background: rgba(250, 204, 21, 0.3); border-color: rgba(250, 204, 21, 0.8); box-shadow: 0 0 16px rgba(250, 204, 21, 0.6); }
+  .skipped { opacity: 0.35; }
+  .found { background: rgba(139, 92, 246, 0.25); border-color: rgba(139, 92, 246, 0.7); box-shadow: 0 0 14px rgba(139, 92, 246, 0.5); }
+
+  /* nav active */
+  .nav-link { position: relative; transition: color 0.2s; }
+  .nav-link.active { color: #06B6D4; }
+  .nav-link.active::after {
+    content: ''; position: absolute; bottom: -6px; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, #06B6D4, #8B5CF6); border-radius: 2px;
+    box-shadow: 0 0 8px #06B6D4;
+  }
+
+  /* Tooltip-ish */
+  .index-label { position: absolute; bottom: -16px; left: 50%; transform: translateX(-50%); font-size: 9px; color: #64748b; font-family: 'JetBrains Mono', monospace; }
+</style>
+</head>
+<body class="bg-bg text-slate-100">
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef, useMemo, useCallback } = React;
+const { motion, AnimatePresence } = window.Motion || window.FramerMotion || {};
+const M = (window.Motion || window.FramerMotion);
+const Motion = M ? M.motion : { div: 'div', span: 'span', button: 'button', h1: 'h1', p: 'p', a: 'a', section: 'section', li: 'li' };
+const AnimateP = M ? M.AnimatePresence : ({children}) => children;
+
+const {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  LineChart, Line, AreaChart, Area, PieChart, Pie, Cell, RadarChart, Radar,
+  PolarGrid, PolarAngleAxis, PolarRadiusAxis,
+} = Recharts;
+
+/* ============================================================
+   HORSPOOL ALGORITHM IMPLEMENTATION
+   ============================================================ */
+
+// Build shift table (bad character table)
+function buildShiftTable(pattern) {
+  const m = pattern.length;
+  const table = {};
+  // For each char in pattern except the last
+  for (let i = 0; i < m - 1; i++) {
+    table[pattern[i]] = m - 1 - i;
+  }
+  return table;
+}
+
+// Returns array of match positions + full step-by-step trace
+function horspoolSearch(text, pattern) {
+  const n = text.length, m = pattern.length;
+  const matches = [];
+  const steps = [];
+  let comparisons = 0;
+  let shifts = 0;
+  let skippedComparisons = 0;
+
+  if (m === 0 || m > n) {
+    return { matches, steps, comparisons: 0, shifts: 0, skippedComparisons: 0, shiftTable: {}, executionTime: 0 };
+  }
+
+  const shiftTable = buildShiftTable(pattern);
+  const t0 = performance.now();
+
+  let i = m - 1; // index in text aligning with last char of pattern
+  while (i < n) {
+    let k = 0; // number of matched characters from right
+    // Compare from right to left
+    const stepComparisons = [];
+    while (k < m && pattern[m - 1 - k] === text[i - k]) {
+      comparisons++;
+      stepComparisons.push({ textIdx: i - k, patternIdx: m - 1 - k, matched: true });
+      k++;
+    }
+    if (k < m) {
+      // mismatch at text[i - k] vs pattern[m - 1 - k]
+      comparisons++;
+      stepComparisons.push({ textIdx: i - k, patternIdx: m - 1 - k, matched: false });
+    }
+
+    const alignmentStart = i - m + 1;
+    const fullMatch = k === m;
+    if (fullMatch) {
+      matches.push(alignmentStart);
+    }
+
+    // Determine shift
+    const badChar = text[i]; // char in text aligned with last position of pattern
+    const shift = shiftTable[badChar] !== undefined ? shiftTable[badChar] : m;
+    // Skipped comparisons (theoretical) = shift - 1, only when shift > 1
+    if (shift > 1) skippedComparisons += (shift - 1);
+
+    steps.push({
+      alignmentStart,
+      patternAligned: pattern,
+      comparisons: stepComparisons,
+      fullMatch,
+      shift,
+      badChar,
+      textIndex: i,
+    });
+
+    i += shift;
+    shifts++;
+  }
+
+  const executionTime = performance.now() - t0;
+  return { matches, steps, comparisons, shifts, skippedComparisons, shiftTable, executionTime };
+}
+
+// Naive string matching for comparison
+function naiveSearch(text, pattern) {
+  const n = text.length, m = pattern.length;
+  const matches = [];
+  let comparisons = 0;
+  const t0 = performance.now();
+  for (let i = 0; i <= n - m; i++) {
+    let j = 0;
+    while (j < m) {
+      comparisons++;
+      if (text[i + j] !== pattern[j]) break;
+      j++;
+    }
+    if (j === m) matches.push(i);
+  }
+  return { matches, comparisons, executionTime: performance.now() - t0 };
+}
+
+// Mutation detection - aligns positions, finds substitutions
+function detectMutations(original, mutated) {
+  const len = Math.min(original.length, mutated.length);
+  const mutations = [];
+  for (let i = 0; i < len; i++) {
+    if (original[i] !== mutated[i]) {
+      mutations.push({ position: i, from: original[i], to: mutated[i] });
+    }
+  }
+  const lengthDiff = Math.abs(original.length - mutated.length);
+  const totalLen = Math.max(original.length, mutated.length);
+  const similarity = totalLen === 0 ? 100 : ((totalLen - mutations.length - lengthDiff) / totalLen) * 100;
+  return { mutations, similarity, lengthDiff, comparedLength: len };
+}
+
+/* ============================================================
+   DISEASE MARKERS (real-ish patterns for demo)
+   ============================================================ */
+const DISEASE_MARKERS = [
+  { name: 'BRCA1 fragment', pattern: 'AGCT', disease: 'Breast Cancer risk marker', color: '#f87171' },
+  { name: 'TP53 fragment', pattern: 'CGGCGG', disease: 'Tumor suppressor mutation site', color: '#fb923c' },
+  { name: 'Sickle Cell (HbS)', pattern: 'GTG', disease: 'Sickle-cell anemia codon', color: '#facc15' },
+  { name: 'CFTR fragment', pattern: 'CTTT', disease: 'Cystic Fibrosis marker', color: '#34d399' },
+  { name: 'HTT repeat', pattern: 'CAG', disease: 'Huntington\'s disease repeat', color: '#a78bfa' },
+];
+
+/* ============================================================
+   COMMON COMPONENTS
+   ============================================================ */
+
+const ParticleField = () => {
+  const particles = useMemo(() => Array.from({ length: 40 }, (_, i) => ({
+    id: i,
+    x: Math.random() * 100,
+    y: Math.random() * 100,
+    size: Math.random() * 3 + 1,
+    duration: Math.random() * 20 + 15,
+    delay: Math.random() * 10,
+    color: Math.random() > 0.5 ? '#06B6D4' : '#8B5CF6',
+  })), []);
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {particles.map(p => (
+        <div key={p.id}
+          className="particle"
+          style={{
+            left: `${p.x}%`, top: `${p.y}%`,
+            width: `${p.size}px`, height: `${p.size}px`,
+            background: p.color,
+            boxShadow: `0 0 ${p.size * 4}px ${p.color}`,
+            animation: `float ${p.duration}s ease-in-out ${p.delay}s infinite`,
+          }} />
+      ))}
+    </div>
+  );
+};
+
+const AnimatedDNA = ({ size = 200 }) => {
+  const [t, setT] = useState(0);
+  useEffect(() => {
+    let id = requestAnimationFrame(function loop() {
+      setT(prev => prev + 0.02);
+      id = requestAnimationFrame(loop);
+    });
+    return () => cancelAnimationFrame(id);
+  }, []);
+  const bases = ['A', 'T', 'G', 'C'];
+  const colors = { A: '#34d399', T: '#f87171', G: '#facc15', C: '#60a5fa' };
+  const rungs = 14;
+  return (
+    <svg viewBox="0 0 200 400" width={size} height={size * 2} className="drop-shadow-[0_0_30px_rgba(6,182,212,0.4)]">
+      <defs>
+        <linearGradient id="strand1" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="#06B6D4" />
+          <stop offset="100%" stopColor="#8B5CF6" />
+        </linearGradient>
+        <linearGradient id="strand2" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="#8B5CF6" />
+          <stop offset="100%" stopColor="#06B6D4" />
+        </linearGradient>
+      </defs>
+      {Array.from({ length: rungs }).map((_, i) => {
+        const y = (i / (rungs - 1)) * 380 + 10;
+        const phase = i * 0.5 + t;
+        const x1 = 100 + Math.sin(phase) * 50;
+        const x2 = 100 - Math.sin(phase) * 50;
+        const base1 = bases[i % 4];
+        const base2 = { A: 'T', T: 'A', G: 'C', C: 'G' }[base1];
+        const zFront = Math.sin(phase) > 0;
+        return (
+          <g key={i}>
+            <line x1={x1} y1={y} x2={x2} y2={y}
+              stroke={zFront ? 'rgba(148,163,184,0.4)' : 'rgba(148,163,184,0.15)'}
+              strokeWidth="1.5" strokeDasharray="2 3" />
+            <circle cx={x1} cy={y} r="6" fill={colors[base1]} opacity={zFront ? 1 : 0.5} />
+            <circle cx={x2} cy={y} r="6" fill={colors[base2]} opacity={zFront ? 0.5 : 1} />
+          </g>
+        );
+      })}
+      {/* Strand curves */}
+      <path d={(() => {
+        let d = '';
+        for (let i = 0; i <= 100; i++) {
+          const y = (i / 100) * 380 + 10;
+          const x = 100 + Math.sin(i * 0.1 + t) * 50;
+          d += (i === 0 ? 'M' : 'L') + x + ' ' + y + ' ';
+        }
+        return d;
+      })()} stroke="url(#strand1)" strokeWidth="3" fill="none" />
+      <path d={(() => {
+        let d = '';
+        for (let i = 0; i <= 100; i++) {
+          const y = (i / 100) * 380 + 10;
+          const x = 100 - Math.sin(i * 0.1 + t) * 50;
+          d += (i === 0 ? 'M' : 'L') + x + ' ' + y + ' ';
+        }
+        return d;
+      })()} stroke="url(#strand2)" strokeWidth="3" fill="none" />
+    </svg>
+  );
+};
+
+const Logo = () => (
+  <div className="flex items-center gap-2.5">
+    <div className="relative">
+      <svg width="32" height="32" viewBox="0 0 32 32">
+        <defs>
+          <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#06B6D4"/>
+            <stop offset="100%" stopColor="#8B5CF6"/>
+          </linearGradient>
+        </defs>
+        <path d="M8 6 Q16 12 24 6 M8 12 Q16 18 24 12 M8 18 Q16 24 24 18 M8 24 Q16 30 24 24"
+          stroke="url(#logoGrad)" strokeWidth="2" fill="none" strokeLinecap="round"/>
+        <circle cx="8" cy="6" r="2" fill="#06B6D4"/>
+        <circle cx="24" cy="6" r="2" fill="#8B5CF6"/>
+        <circle cx="8" cy="18" r="2" fill="#8B5CF6"/>
+        <circle cx="24" cy="18" r="2" fill="#06B6D4"/>
+      </svg>
+    </div>
+    <div>
+      <div className="font-display font-bold text-lg leading-none tracking-tight">GeneTrace</div>
+      <div className="text-[9px] tracking-[0.2em] text-cyan-400 uppercase">Bioinformatics Lab</div>
+    </div>
+  </div>
+);
+
+const Navbar = ({ page, setPage, user, onLogout }) => {
+  const [open, setOpen] = useState(false);
+  const links = [
+    ['home', 'Home'],
+    ['search', 'DNA Search'],
+    ['visualize', 'Visualizer'],
+    ['mutation', 'Mutation'],
+    ['analytics', 'Analytics'],
+    ['about', 'About'],
+  ];
+  return (
+    <nav className="fixed top-0 inset-x-0 z-50 glass-strong border-b border-slate-800/60">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+        <button onClick={() => setPage('home')} className="cursor-pointer">
+          <Logo/>
+        </button>
+        <div className="hidden lg:flex items-center gap-7">
+          {links.map(([k, label]) => (
+            <button key={k} onClick={() => setPage(k)}
+              className={`nav-link text-sm font-medium hover:text-cyan-400 ${page === k ? 'active' : 'text-slate-300'}`}>
+              {label}
+            </button>
+          ))}
+          {user ? (
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-slate-400">Hi, {user.name}</span>
+              <button onClick={onLogout} className="text-sm px-4 py-1.5 rounded-full border border-slate-700 hover:border-cyan-400 hover:text-cyan-400 transition">Logout</button>
+            </div>
+          ) : (
+            <button onClick={() => setPage('auth')} className="btn-primary text-sm px-5 py-2 rounded-full font-medium text-white">
+              Sign In
+            </button>
+          )}
+        </div>
+        <button onClick={() => setOpen(!open)} className="lg:hidden text-slate-300 p-2">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+      </div>
+      {open && (
+        <div className="lg:hidden glass-strong border-t border-slate-800/60 px-4 py-4 space-y-2">
+          {links.map(([k, label]) => (
+            <button key={k} onClick={() => { setPage(k); setOpen(false); }}
+              className={`block w-full text-left py-2 px-3 rounded-lg ${page === k ? 'bg-cyan-500/10 text-cyan-400' : 'text-slate-300'}`}>
+              {label}
+            </button>
+          ))}
+          {user ? (
+            <button onClick={() => { onLogout(); setOpen(false); }} className="block w-full text-left py-2 px-3 text-rose-400">Logout</button>
+          ) : (
+            <button onClick={() => { setPage('auth'); setOpen(false); }} className="block w-full text-left py-2 px-3 text-cyan-400">Sign In</button>
+          )}
+        </div>
+      )}
+    </nav>
+  );
+};
+
+const SectionTitle = ({ eyebrow, title, subtitle }) => (
+  <div className="text-center mb-12">
+    {eyebrow && <div className="inline-block text-xs tracking-[0.3em] text-cyan-400 uppercase font-medium mb-3 px-3 py-1 border border-cyan-500/30 rounded-full bg-cyan-500/5">{eyebrow}</div>}
+    <h2 className="font-display text-3xl sm:text-4xl md:text-5xl font-bold mb-4">{title}</h2>
+    {subtitle && <p className="text-slate-400 max-w-2xl mx-auto text-sm sm:text-base">{subtitle}</p>}
+  </div>
+);
+
+/* ============================================================
+   HOME PAGE
+   ============================================================ */
+const HomePage = ({ setPage }) => {
+  const features = [
+    { icon: '🧬', title: 'DNA Pattern Search', desc: 'Lightning-fast subsequence detection using Horspool string matching.', color: 'cyan' },
+    { icon: '⚡', title: 'Real-time Visualization', desc: 'Watch the algorithm shift, compare, and skip — frame by frame.', color: 'purple' },
+    { icon: '🔬', title: 'Mutation Detection', desc: 'Pinpoint base substitutions between original and modified sequences.', color: 'cyan' },
+    { icon: '📊', title: 'Analytics Dashboard', desc: 'Track searches, mutations, and algorithm efficiency in one place.', color: 'purple' },
+    { icon: '🩺', title: 'Disease Marker Scan', desc: 'Screen sequences against BRCA, TP53, sickle-cell and more.', color: 'cyan' },
+    { icon: '📈', title: 'Naive vs Horspool', desc: 'Side-by-side benchmark of classic DAA algorithms.', color: 'purple' },
+  ];
+  const stats = [
+    { label: 'DNA Bases Analyzed', value: '12.4M' },
+    { label: 'Avg. Speed-up vs Naive', value: '7.2×' },
+    { label: 'Mutations Catalogued', value: '48,210' },
+    { label: 'Disease Markers', value: '5' },
+  ];
+
+  return (
+    <div className="relative">
+      {/* HERO */}
+      <section className="relative min-h-screen flex items-center pt-24 pb-16 overflow-hidden bg-grid">
+        <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-transparent to-purple-500/10"/>
+        <div className="absolute -top-40 -left-40 w-[500px] h-[500px] bg-cyan-500/20 rounded-full blur-[120px]"/>
+        <div className="absolute -bottom-40 -right-40 w-[500px] h-[500px] bg-purple-500/20 rounded-full blur-[120px]"/>
+        <ParticleField/>
+
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 w-full grid lg:grid-cols-2 gap-10 items-center">
+          <div>
+            <Motion.div initial={{opacity:0, y:20}} animate={{opacity:1, y:0}} transition={{duration:0.7}}>
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass text-xs text-cyan-300 mb-6">
+                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"/>
+                Powered by Horspool String Matching
+              </div>
+              <h1 className="font-display text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold leading-[1.05] mb-6">
+                Analyze DNA Sequences <span className="gradient-text">Faster</span> Using Horspool Algorithm
+              </h1>
+              <p className="text-slate-400 text-base sm:text-lg mb-8 max-w-xl leading-relaxed">
+                A modern bioinformatics platform that detects patterns, mutations and disease markers in DNA sequences — with full visualization of the algorithm's inner workings.
+              </p>
+              <div className="flex flex-wrap gap-4">
+                <button onClick={() => setPage('search')} className="btn-primary px-7 py-3.5 rounded-full font-semibold text-white">
+                  Start Analyzing →
+                </button>
+                <button onClick={() => setPage('visualize')} className="px-7 py-3.5 rounded-full font-semibold border border-slate-700 hover:border-cyan-400 hover:text-cyan-400 transition">
+                  See Visualizer
+                </button>
+              </div>
+            </Motion.div>
+          </div>
+
+          <div className="flex justify-center lg:justify-end">
+            <Motion.div initial={{opacity:0, scale:0.9}} animate={{opacity:1, scale:1}} transition={{duration:0.8, delay:0.2}} className="relative">
+              <div className="absolute inset-0 bg-cyan-500/30 blur-[80px] rounded-full"/>
+              <AnimatedDNA size={220}/>
+            </Motion.div>
+          </div>
+        </div>
+
+        {/* scroll hint */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-slate-500 text-xs tracking-widest">
+          <div className="flex flex-col items-center gap-2 animate-pulse">
+            <span>SCROLL</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+          </div>
+        </div>
+      </section>
+
+      {/* STATS STRIP */}
+      <section className="relative py-12 border-y border-slate-800/60 bg-slate-950/40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 grid grid-cols-2 md:grid-cols-4 gap-6">
+          {stats.map((s, i) => (
+            <Motion.div key={i} initial={{opacity:0, y:20}} whileInView={{opacity:1, y:0}} viewport={{once:true}} transition={{delay:i*0.1}}
+              className="text-center">
+              <div className="font-display text-3xl md:text-4xl font-bold gradient-text">{s.value}</div>
+              <div className="text-xs uppercase tracking-widest text-slate-500 mt-2">{s.label}</div>
+            </Motion.div>
+          ))}
+        </div>
+      </section>
+
+      {/* FEATURES */}
+      <section className="relative py-24 overflow-hidden">
+        <div className="absolute inset-0 bg-grid opacity-30"/>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 relative">
+          <SectionTitle eyebrow="Capabilities" title="Built for Genome Research" subtitle="A research-grade toolkit packing classical DAA into a slick biotech interface."/>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {features.map((f, i) => (
+              <Motion.div key={i} initial={{opacity:0, y:20}} whileInView={{opacity:1, y:0}} viewport={{once:true}} transition={{delay:i*0.07}}
+                whileHover={{y:-4}}
+                className={`glass p-6 rounded-2xl hover:border-${f.color}-400/40 transition group`}>
+                <div className={`text-4xl mb-4 group-hover:scale-110 transition`}>{f.icon}</div>
+                <h3 className="font-semibold text-lg mb-2">{f.title}</h3>
+                <p className="text-sm text-slate-400 leading-relaxed">{f.desc}</p>
+              </Motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ALGORITHM PREVIEW */}
+      <section className="relative py-24 bg-slate-950/40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <SectionTitle eyebrow="The Algorithm" title="Horspool — The Smarter Search" subtitle="A 1980 simplification of Boyer-Moore that skips comparisons using a single bad-character table."/>
+          <div className="grid lg:grid-cols-2 gap-8 items-center">
+            <div className="glass p-6 rounded-2xl font-mono text-xs sm:text-sm overflow-x-auto">
+              <div className="text-slate-500 mb-2">// Horspool core loop</div>
+              <pre className="text-slate-200">{`function horspool(text, pattern) {
+  const m = pattern.length, n = text.length;
+  const table = buildShiftTable(pattern);
+  let i = m - 1;
+  while (i < n) {
+    let k = 0;
+    while (k < m && pattern[m-1-k] === text[i-k]) k++;
+    if (k === m) return i - m + 1; // match!
+    i += table[text[i]] ?? m;       // skip
+  }
+}`}</pre>
+            </div>
+            <div className="space-y-4">
+              {[
+                { step: '01', title: 'Preprocess', desc: 'Build a shift table mapping each character to its rightmost position in the pattern.' },
+                { step: '02', title: 'Compare right-to-left', desc: 'Align pattern with text and check matches from the tail backwards.' },
+                { step: '03', title: 'Smart shifting', desc: 'On mismatch, jump forward by the table value of the aligned text character.' },
+                { step: '04', title: 'Repeat', desc: 'Continue until the pattern walks past the end of the text.' },
+              ].map(s => (
+                <div key={s.step} className="flex gap-4 glass p-4 rounded-xl">
+                  <div className="font-mono text-2xl text-cyan-400 font-bold">{s.step}</div>
+                  <div>
+                    <div className="font-semibold mb-1">{s.title}</div>
+                    <div className="text-sm text-slate-400">{s.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="relative py-24">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
+          <div className="glass-strong p-12 rounded-3xl relative overflow-hidden">
+            <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-96 h-96 bg-purple-500/30 blur-[100px] rounded-full"/>
+            <h2 className="relative font-display text-3xl sm:text-4xl font-bold mb-4">Ready to explore your DNA?</h2>
+            <p className="relative text-slate-400 mb-8 max-w-xl mx-auto">Paste a sequence, hit analyze, and watch Horspool tear through millions of bases in milliseconds.</p>
+            <button onClick={() => setPage('search')} className="relative btn-primary px-8 py-4 rounded-full font-semibold">
+              Launch DNA Analyzer →
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+};
+
+/* ============================================================
+   DNA SEARCH PAGE
+   ============================================================ */
+const SAMPLE_DNA = 'ATGCGTAGCTAGCTAGCATGCGTAGCAATGCTAGCTAGCTAGCATGCAGCTAGCGTATGCGT';
+const BASE_REGEX = /^[ATGC]*$/i;
+
+const DNAInput = ({ value, onChange, label, placeholder, rows = 3 }) => {
+  const sanitized = value.toUpperCase();
+  const valid = BASE_REGEX.test(sanitized);
+  return (
+    <div>
+      <label className="text-xs uppercase tracking-widest text-slate-500 font-medium block mb-2">{label}</label>
+      <textarea
+        value={sanitized}
+        onChange={e => onChange(e.target.value.toUpperCase().replace(/[^ATGC]/g, ''))}
+        placeholder={placeholder}
+        rows={rows}
+        className={`w-full glass rounded-xl p-4 font-mono text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 ${valid ? 'focus:ring-cyan-500/50' : 'focus:ring-rose-500/50'} placeholder-slate-600`}
+      />
+      <div className="flex justify-between text-[10px] mt-1.5 uppercase tracking-wider">
+        <span className="text-slate-500">Length: <span className="text-cyan-400">{sanitized.length}</span></span>
+        <span className="text-slate-500">Only A, T, G, C accepted</span>
+      </div>
+    </div>
+  );
+};
+
+const StatCard = ({ label, value, sub, color = 'cyan' }) => (
+  <div className="glass p-4 rounded-xl">
+    <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-1.5">{label}</div>
+    <div className={`font-display text-2xl font-bold text-${color}-400`}>{value}</div>
+    {sub && <div className="text-[10px] text-slate-500 mt-1">{sub}</div>}
+  </div>
+);
+
+const SearchPage = ({ addHistory }) => {
+  const [dna, setDna] = useState(SAMPLE_DNA);
+  const [pattern, setPattern] = useState('TAGC');
+  const [result, setResult] = useState(null);
+  const [running, setRunning] = useState(false);
+
+  const runSearch = () => {
+    if (!pattern || !dna) return;
+    setRunning(true);
+    setTimeout(() => {
+      const horspool = horspoolSearch(dna, pattern);
+      const naive = naiveSearch(dna, pattern);
+      const r = { horspool, naive, pattern, dna, ts: Date.now() };
+      setResult(r);
+      addHistory({ pattern, dnaLen: dna.length, matches: horspool.matches.length, time: horspool.executionTime });
+      setRunning(false);
+    }, 400);
+  };
+
+  const HighlightedDNA = ({ dna, matches, pattern }) => {
+    const matchSet = new Set();
+    matches.forEach(start => {
+      for (let i = 0; i < pattern.length; i++) matchSet.add(start + i);
+    });
+    return (
+      <div className="font-mono text-sm leading-loose break-all">
+        {dna.split('').map((c, i) => (
+          <span key={i}
+            className={`inline-block px-0.5 ${matchSet.has(i) ? 'bg-purple-500/40 text-purple-200 rounded' : `base-${c}`}`}>
+            {c}
+          </span>
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <div className="pt-28 pb-20 min-h-screen relative bg-grid">
+      <div className="absolute top-20 left-1/4 w-96 h-96 bg-cyan-500/10 blur-[100px] rounded-full"/>
+      <div className="absolute bottom-20 right-1/4 w-96 h-96 bg-purple-500/10 blur-[100px] rounded-full"/>
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6">
+        <SectionTitle eyebrow="Core Tool" title="DNA Pattern Search" subtitle="Search any sub-sequence inside a DNA strand using Horspool's algorithm — and benchmark it against naive matching."/>
+
+        <div className="grid lg:grid-cols-3 gap-6 mb-8">
+          <div className="lg:col-span-2 glass p-6 rounded-2xl space-y-5">
+            <DNAInput label="DNA Sequence" value={dna} onChange={setDna} placeholder="Paste your DNA sequence here..." rows={4}/>
+            <DNAInput label="Pattern to Search" value={pattern} onChange={setPattern} placeholder="e.g. TAGC" rows={2}/>
+            <div className="flex flex-wrap gap-3">
+              <button disabled={running || !pattern} onClick={runSearch}
+                className="btn-primary px-6 py-3 rounded-xl font-semibold disabled:opacity-40 disabled:cursor-not-allowed">
+                {running ? 'Analyzing…' : '▶ Analyze Sequence'}
+              </button>
+              <button onClick={() => { setDna(SAMPLE_DNA); setPattern('TAGC'); }}
+                className="px-6 py-3 rounded-xl border border-slate-700 hover:border-cyan-400 text-sm">Load Sample</button>
+              <button onClick={() => { setDna(''); setPattern(''); setResult(null); }}
+                className="px-6 py-3 rounded-xl border border-slate-700 hover:border-rose-400 text-sm">Clear</button>
+            </div>
+          </div>
+
+          <div className="glass p-6 rounded-2xl">
+            <div className="text-xs uppercase tracking-widest text-slate-500 mb-3">Disease Marker Scan</div>
+            <div className="space-y-2 text-sm">
+              {DISEASE_MARKERS.map(m => {
+                const found = result && result.dna ? horspoolSearch(result.dna || dna, m.pattern).matches.length : null;
+                return (
+                  <button key={m.name} onClick={() => setPattern(m.pattern)}
+                    className="w-full text-left flex items-center justify-between gap-2 p-2.5 rounded-lg hover:bg-slate-800/60 transition">
+                    <div>
+                      <div className="font-medium" style={{color: m.color}}>{m.name}</div>
+                      <div className="text-[10px] text-slate-500">{m.disease}</div>
+                    </div>
+                    <span className="font-mono text-xs text-slate-300">{m.pattern}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <AnimateP>
+        {result && (
+          <Motion.div initial={{opacity:0, y:20}} animate={{opacity:1, y:0}} className="space-y-6">
+            {/* Stats grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              <StatCard label="Matches Found" value={result.horspool.matches.length} color="purple"/>
+              <StatCard label="Comparisons" value={result.horspool.comparisons}/>
+              <StatCard label="Total Shifts" value={result.horspool.shifts}/>
+              <StatCard label="Skipped" value={result.horspool.skippedComparisons} sub="theoretical"/>
+              <StatCard label="Horspool Time" value={result.horspool.executionTime.toFixed(3) + ' ms'}/>
+              <StatCard label="Naive Time" value={result.naive.executionTime.toFixed(3) + ' ms'} color="purple"/>
+            </div>
+
+            <div className="grid lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 glass p-6 rounded-2xl">
+                <h3 className="font-semibold mb-3 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"/>
+                  DNA Highlight View
+                </h3>
+                <div className="bg-slate-950/60 p-4 rounded-xl max-h-72 overflow-auto border border-slate-800/60">
+                  <HighlightedDNA dna={result.dna} matches={result.horspool.matches} pattern={result.pattern}/>
+                </div>
+                <div className="mt-3 text-xs text-slate-500">
+                  Matched positions: <span className="text-purple-400 font-mono">{result.horspool.matches.join(', ') || 'none'}</span>
+                </div>
+              </div>
+
+              <div className="glass p-6 rounded-2xl">
+                <h3 className="font-semibold mb-3">Shift Table</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {['A','T','G','C'].map(c => {
+                    const val = result.horspool.shiftTable[c] !== undefined ? result.horspool.shiftTable[c] : result.pattern.length;
+                    return (
+                      <div key={c} className="bg-slate-950/60 rounded-lg p-3 text-center border border-slate-800/50">
+                        <div className={`font-mono font-bold text-2xl base-${c}`}>{c}</div>
+                        <div className="text-[10px] text-slate-500 uppercase tracking-wider mt-1">shift</div>
+                        <div className="font-mono text-lg text-slate-200">{val}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="mt-4 text-[11px] text-slate-500 leading-relaxed">
+                  Default shift (chars not in pattern) = pattern length = <span className="text-cyan-400 font-mono">{result.pattern.length}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Comparison chart */}
+            <div className="glass p-6 rounded-2xl">
+              <h3 className="font-semibold mb-4">Naive vs Horspool — Comparisons</h3>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={[
+                  { name: 'Naive', comparisons: result.naive.comparisons, time: result.naive.executionTime },
+                  { name: 'Horspool', comparisons: result.horspool.comparisons, time: result.horspool.executionTime },
+                ]}>
+                  <CartesianGrid stroke="#1e293b" strokeDasharray="3 3"/>
+                  <XAxis dataKey="name" stroke="#64748b"/>
+                  <YAxis stroke="#64748b"/>
+                  <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8 }}/>
+                  <Bar dataKey="comparisons" fill="#06B6D4" radius={[8,8,0,0]}/>
+                </BarChart>
+              </ResponsiveContainer>
+              <div className="text-center text-sm text-slate-400 mt-2">
+                Horspool used <span className="text-cyan-400 font-bold">{result.horspool.comparisons}</span> comparisons vs <span className="text-rose-400 font-bold">{result.naive.comparisons}</span> for naive — that's a <span className="text-purple-400 font-bold">{(result.naive.comparisons / Math.max(result.horspool.comparisons, 1)).toFixed(2)}×</span> reduction.
+              </div>
+            </div>
+          </Motion.div>
+        )}
+        </AnimateP>
+      </div>
+    </div>
+  );
+};
+
+/* ============================================================
+   HORSPOOL VISUALIZATION PAGE
+   ============================================================ */
+const VisualizationPage = () => {
+  const [dna, setDna] = useState('ATGCGTAGCTAGCTAGC');
+  const [pattern, setPattern] = useState('TAGC');
+  const [stepIdx, setStepIdx] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [speed, setSpeed] = useState(800);
+
+  const analysis = useMemo(() => horspoolSearch(dna, pattern), [dna, pattern]);
+
+  useEffect(() => {
+    if (!playing) return;
+    if (stepIdx >= analysis.steps.length - 1) { setPlaying(false); return; }
+    const id = setTimeout(() => setStepIdx(s => s + 1), speed);
+    return () => clearTimeout(id);
+  }, [playing, stepIdx, speed, analysis.steps.length]);
+
+  useEffect(() => { setStepIdx(0); setPlaying(false); }, [dna, pattern]);
+
+  const step = analysis.steps[stepIdx];
+  const completedAlignments = analysis.steps.slice(0, stepIdx + 1).filter(s => s.fullMatch).map(s => s.alignmentStart);
+
+  // Build comparison state for visualization
+  const compMap = {};
+  if (step) {
+    step.comparisons.forEach(c => {
+      compMap[c.textIdx] = c.matched ? 'match' : 'mismatch';
+    });
+    // Mark "current" as the last comparison
+    const last = step.comparisons[step.comparisons.length - 1];
+    if (last) compMap[last.textIdx] = (compMap[last.textIdx] === 'match' && step.fullMatch) ? 'match' : compMap[last.textIdx];
+  }
+
+  return (
+    <div className="pt-28 pb-20 min-h-screen relative bg-grid">
+      <div className="absolute top-40 right-20 w-96 h-96 bg-purple-500/10 blur-[100px] rounded-full"/>
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6">
+        <SectionTitle eyebrow="Step-by-Step" title="Horspool Visualizer" subtitle="Watch the pattern slide along the text, with right-to-left comparisons, mismatches, and smart shifts."/>
+
+        {/* Controls */}
+        <div className="glass p-5 rounded-2xl mb-6 grid md:grid-cols-2 gap-4">
+          <DNAInput label="Text (DNA)" value={dna} onChange={setDna} rows={2}/>
+          <DNAInput label="Pattern" value={pattern} onChange={setPattern} rows={2}/>
+        </div>
+
+        <div className="glass p-5 rounded-2xl mb-6 flex flex-wrap items-center gap-4">
+          <button onClick={() => setPlaying(!playing)}
+            className="btn-primary px-5 py-2.5 rounded-lg font-semibold text-sm">
+            {playing ? '❚❚ Pause' : '▶ Play'}
+          </button>
+          <button onClick={() => setStepIdx(Math.max(0, stepIdx - 1))} disabled={stepIdx === 0}
+            className="px-4 py-2.5 rounded-lg border border-slate-700 text-sm disabled:opacity-40">◀ Prev</button>
+          <button onClick={() => setStepIdx(Math.min(analysis.steps.length - 1, stepIdx + 1))} disabled={stepIdx >= analysis.steps.length - 1}
+            className="px-4 py-2.5 rounded-lg border border-slate-700 text-sm disabled:opacity-40">Next ▶</button>
+          <button onClick={() => { setStepIdx(0); setPlaying(false); }} className="px-4 py-2.5 rounded-lg border border-slate-700 text-sm">⟲ Reset</button>
+          <div className="flex items-center gap-2 ml-auto">
+            <span className="text-xs text-slate-500 uppercase tracking-widest">Speed</span>
+            <input type="range" min="200" max="2000" step="100" value={2200 - speed} onChange={e => setSpeed(2200 - parseInt(e.target.value))} className="accent-cyan-500"/>
+          </div>
+          <div className="font-mono text-sm text-cyan-400">
+            Step {stepIdx + 1} / {analysis.steps.length}
+          </div>
+        </div>
+
+        {/* The visualizer */}
+        <div className="glass p-6 rounded-2xl mb-6 overflow-x-auto">
+          {step ? (
+            <div className="min-w-max">
+              {/* Index ruler */}
+              <div className="flex mb-1 text-[10px] text-slate-600 font-mono">
+                {dna.split('').map((_, i) => (
+                  <div key={i} className="w-[40px] sm:w-[40px] text-center" style={{width: 40}}>{i}</div>
+                ))}
+              </div>
+
+              {/* Text row */}
+              <div className="flex mb-6">
+                {dna.split('').map((c, i) => {
+                  const state = compMap[i];
+                  const inWindow = i >= step.alignmentStart && i < step.alignmentStart + pattern.length;
+                  const isFound = completedAlignments.some(start => i >= start && i < start + pattern.length);
+                  let cls = `base-cell base-${c}`;
+                  if (state === 'match') cls += ' match';
+                  else if (state === 'mismatch') cls += ' mismatch';
+                  else if (isFound && !inWindow) cls += ' found';
+                  else if (!inWindow && i < step.alignmentStart) cls += ' skipped';
+                  return (
+                    <div key={i} className={cls} style={{width: 40}}>
+                      {c}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Pattern row aligned */}
+              <div className="flex" style={{ marginLeft: step.alignmentStart * 40 }}>
+                {pattern.split('').map((c, i) => {
+                  const textIdx = step.alignmentStart + i;
+                  const state = compMap[textIdx];
+                  let cls = `base-cell base-${c}`;
+                  if (state === 'match') cls += ' match';
+                  else if (state === 'mismatch') cls += ' mismatch';
+                  return (
+                    <div key={i} className={cls} style={{width: 40}}>
+                      {c}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Shift arrow */}
+              <div className="flex items-center gap-3 mt-6 text-sm">
+                <div className="px-3 py-1.5 rounded-full bg-yellow-400/10 border border-yellow-400/30 text-yellow-300 font-mono">
+                  shift = {step.shift}
+                </div>
+                {step.fullMatch && (
+                  <div className="px-3 py-1.5 rounded-full bg-emerald-400/10 border border-emerald-400/30 text-emerald-300 font-mono">
+                    ✓ MATCH at index {step.alignmentStart}
+                  </div>
+                )}
+                <div className="text-xs text-slate-500">
+                  Bad char: <span className="font-mono text-slate-300">{step.badChar}</span> →
+                  table lookup = <span className="font-mono text-cyan-400">{step.shift}</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-slate-400 text-center py-8">Enter a DNA sequence and pattern to begin visualization</div>
+          )}
+        </div>
+
+        {/* Legend */}
+        <div className="glass p-4 rounded-2xl flex flex-wrap gap-4 text-sm mb-6">
+          <div className="flex items-center gap-2"><div className="base-cell match" style={{width:24, height:24}}></div> Matched</div>
+          <div className="flex items-center gap-2"><div className="base-cell mismatch" style={{width:24, height:24}}></div> Mismatch</div>
+          <div className="flex items-center gap-2"><div className="base-cell current" style={{width:24, height:24}}></div> Current</div>
+          <div className="flex items-center gap-2"><div className="base-cell found" style={{width:24, height:24}}></div> Already Matched</div>
+          <div className="flex items-center gap-2"><div className="base-cell skipped" style={{width:24, height:24}}>A</div> Skipped Region</div>
+        </div>
+
+        {/* Shift table side panel */}
+        <div className="grid lg:grid-cols-2 gap-6">
+          <div className="glass p-6 rounded-2xl">
+            <h3 className="font-semibold mb-3">Shift Table for "{pattern}"</h3>
+            <div className="grid grid-cols-4 gap-2">
+              {['A','T','G','C'].map(c => {
+                const val = analysis.shiftTable[c] !== undefined ? analysis.shiftTable[c] : pattern.length;
+                return (
+                  <div key={c} className="bg-slate-950/60 rounded-lg p-3 text-center border border-slate-800/50">
+                    <div className={`font-mono font-bold text-2xl base-${c}`}>{c}</div>
+                    <div className="font-mono text-lg text-slate-200">{val}</div>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-xs text-slate-500 mt-4 leading-relaxed">
+              Each value tells us how far to slide the pattern when that character is aligned with the pattern's last position and a mismatch occurs.
+            </p>
+          </div>
+
+          <div className="glass p-6 rounded-2xl">
+            <h3 className="font-semibold mb-3">Summary</h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-slate-400">Pattern</span><span className="font-mono text-cyan-400">{pattern}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Text length</span><span className="font-mono">{dna.length}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Matches found</span><span className="font-mono text-purple-400">{analysis.matches.length}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Total comparisons</span><span className="font-mono">{analysis.comparisons}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Pattern shifts</span><span className="font-mono">{analysis.shifts}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Skipped (theoretical)</span><span className="font-mono">{analysis.skippedComparisons}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Execution time</span><span className="font-mono text-emerald-400">{analysis.executionTime.toFixed(3)} ms</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ============================================================
+   MUTATION DETECTION PAGE
+   ============================================================ */
+const MutationPage = () => {
+  const [orig, setOrig] = useState('ATGCGTAGCTAGCATCG');
+  const [mut, setMut] = useState('ATGAGTAGCTTGCATCC');
+  const [analysis, setAnalysis] = useState(null);
+
+  const runAnalysis = () => {
+    if (!orig || !mut) return;
+    setAnalysis(detectMutations(orig, mut));
+  };
+
+  useEffect(runAnalysis, []);
+
+  const renderAligned = () => {
+    if (!analysis) return null;
+    const len = Math.max(orig.length, mut.length);
+    return (
+      <div className="font-mono text-sm overflow-x-auto">
+        <div className="min-w-max">
+          <div className="text-xs text-slate-500 mb-1">Original</div>
+          <div className="flex">
+            {Array.from({length: len}).map((_, i) => {
+              const c = orig[i] || '·';
+              const isMut = i < orig.length && i < mut.length && orig[i] !== mut[i];
+              const isExtra = i >= mut.length && i < orig.length;
+              const cls = `base-cell base-${c} ${isMut ? 'mismatch' : isExtra ? 'mismatch' : c !== '·' ? 'match' : ''}`;
+              return <div key={i} className={cls}>{c}</div>;
+            })}
+          </div>
+          <div className="text-xs text-slate-500 mb-1 mt-3">Mutated</div>
+          <div className="flex">
+            {Array.from({length: len}).map((_, i) => {
+              const c = mut[i] || '·';
+              const isMut = i < orig.length && i < mut.length && orig[i] !== mut[i];
+              const isExtra = i >= orig.length && i < mut.length;
+              const cls = `base-cell base-${c} ${isMut ? 'mismatch' : isExtra ? 'mismatch' : c !== '·' ? 'match' : ''}`;
+              return <div key={i} className={cls}>{c}</div>;
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // mutation heatmap data
+  const heatmapData = analysis ? (() => {
+    const bins = 20;
+    const len = Math.min(orig.length, mut.length);
+    const data = Array.from({length: bins}, (_, i) => ({ bin: i + 1, mutations: 0 }));
+    analysis.mutations.forEach(m => {
+      const b = Math.floor((m.position / len) * bins);
+      data[Math.min(b, bins - 1)].mutations++;
+    });
+    return data;
+  })() : [];
+
+  return (
+    <div className="pt-28 pb-20 min-h-screen relative bg-grid">
+      <div className="absolute top-40 left-20 w-96 h-96 bg-rose-500/10 blur-[100px] rounded-full"/>
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6">
+        <SectionTitle eyebrow="Comparison" title="Mutation Detection" subtitle="Spot base substitutions, deletions and insertions between an original and mutated DNA strand."/>
+
+        <div className="grid md:grid-cols-2 gap-5 mb-6">
+          <div className="glass p-5 rounded-2xl">
+            <DNAInput label="Original DNA" value={orig} onChange={setOrig} rows={3}/>
+          </div>
+          <div className="glass p-5 rounded-2xl">
+            <DNAInput label="Mutated DNA" value={mut} onChange={setMut} rows={3}/>
+          </div>
+        </div>
+
+        <button onClick={runAnalysis} className="btn-primary px-6 py-3 rounded-xl font-semibold mb-8">
+          🧬 Detect Mutations
+        </button>
+
+        {analysis && (
+          <Motion.div initial={{opacity:0, y:20}} animate={{opacity:1, y:0}} className="space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <StatCard label="Mutations" value={analysis.mutations.length} color="purple"/>
+              <StatCard label="Similarity" value={analysis.similarity.toFixed(1) + '%'}/>
+              <StatCard label="Length Diff" value={analysis.lengthDiff}/>
+              <StatCard label="Compared" value={analysis.comparedLength + ' bp'}/>
+            </div>
+
+            <div className="glass p-6 rounded-2xl">
+              <h3 className="font-semibold mb-4">Aligned View</h3>
+              <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/50">
+                {renderAligned()}
+              </div>
+            </div>
+
+            <div className="grid lg:grid-cols-2 gap-6">
+              <div className="glass p-6 rounded-2xl">
+                <h3 className="font-semibold mb-3">Mutation List</h3>
+                {analysis.mutations.length === 0 ? (
+                  <div className="text-emerald-400 text-sm">✓ No mutations detected — sequences are identical in the compared region.</div>
+                ) : (
+                  <div className="max-h-72 overflow-auto space-y-1.5">
+                    {analysis.mutations.map((m, i) => (
+                      <div key={i} className="flex items-center justify-between text-sm font-mono bg-slate-950/50 rounded-lg px-3 py-2 border border-slate-800/50">
+                        <span className="text-slate-500">pos {m.position}</span>
+                        <span className="flex items-center gap-2">
+                          <span className={`base-${m.from} font-bold`}>{m.from}</span>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-slate-500"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                          <span className={`base-${m.to} font-bold`}>{m.to}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="glass p-6 rounded-2xl">
+                <h3 className="font-semibold mb-3">Mutation Density Heatmap</h3>
+                <ResponsiveContainer width="100%" height={220}>
+                  <AreaChart data={heatmapData}>
+                    <defs>
+                      <linearGradient id="heat" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#f87171" stopOpacity={0.8}/>
+                        <stop offset="100%" stopColor="#f87171" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid stroke="#1e293b" strokeDasharray="3 3"/>
+                    <XAxis dataKey="bin" stroke="#64748b"/>
+                    <YAxis stroke="#64748b"/>
+                    <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8 }}/>
+                    <Area type="monotone" dataKey="mutations" stroke="#f87171" fill="url(#heat)"/>
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </Motion.div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/* ============================================================
+   ANALYTICS DASHBOARD
+   ============================================================ */
+const AnalyticsPage = ({ history }) => {
+  // Generate some mock-but-realistic dashboard data, enriched with real history
+  const dashData = useMemo(() => {
+    const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const daily = days.map(d => ({ day: d, searches: 20 + Math.floor(Math.random()*80), mutations: 5 + Math.floor(Math.random()*30) }));
+
+    const patternFreq = {};
+    history.forEach(h => { patternFreq[h.pattern] = (patternFreq[h.pattern] || 0) + 1; });
+    // seed with some defaults
+    ['TAGC','ATG','CGT','AAGCTT','GGCC'].forEach(p => { patternFreq[p] = (patternFreq[p] || 0) + Math.floor(Math.random()*8)+2; });
+    const topPatterns = Object.entries(patternFreq).map(([pattern, count]) => ({pattern, count})).sort((a,b)=>b.count-a.count).slice(0,5);
+
+    const efficiency = [
+      { algo: 'Naive', score: 35 },
+      { algo: 'KMP', score: 75 },
+      { algo: 'Horspool', score: 88 },
+      { algo: 'Boyer-Moore', score: 92 },
+      { algo: 'Rabin-Karp', score: 68 },
+    ];
+
+    const baseDist = [
+      { name: 'A', value: 28, color: '#34d399' },
+      { name: 'T', value: 27, color: '#f87171' },
+      { name: 'G', value: 23, color: '#facc15' },
+      { name: 'C', value: 22, color: '#60a5fa' },
+    ];
+
+    return { daily, topPatterns, efficiency, baseDist };
+  }, [history]);
+
+  const avgTime = history.length ? (history.reduce((s,h)=>s+h.time,0) / history.length) : 0;
+  const totalSearches = history.length || 247;
+  const totalMatches = history.reduce((s,h)=>s+h.matches, 0) || 1842;
+
+  return (
+    <div className="pt-28 pb-20 min-h-screen relative bg-grid">
+      <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-cyan-500/10 blur-[120px] rounded-full"/>
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6">
+        <SectionTitle eyebrow="Insights" title="Analytics Dashboard" subtitle="Real-time metrics across your DNA analyses, mutations, and algorithm performance."/>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <StatCard label="Total Searches" value={totalSearches} sub="this session + cached"/>
+          <StatCard label="Matches Found" value={totalMatches} color="purple"/>
+          <StatCard label="Avg. Search Time" value={(avgTime || 0.42).toFixed(2) + ' ms'}/>
+          <StatCard label="Efficiency vs Naive" value="7.2×" color="purple" sub="comparison reduction"/>
+        </div>
+
+        <div className="grid lg:grid-cols-3 gap-6 mb-6">
+          <div className="lg:col-span-2 glass p-6 rounded-2xl">
+            <h3 className="font-semibold mb-4">Daily Activity</h3>
+            <ResponsiveContainer width="100%" height={260}>
+              <AreaChart data={dashData.daily}>
+                <defs>
+                  <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#06B6D4" stopOpacity={0.7}/>
+                    <stop offset="100%" stopColor="#06B6D4" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.7}/>
+                    <stop offset="100%" stopColor="#8B5CF6" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="#1e293b" strokeDasharray="3 3"/>
+                <XAxis dataKey="day" stroke="#64748b"/>
+                <YAxis stroke="#64748b"/>
+                <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8 }}/>
+                <Area type="monotone" dataKey="searches" stroke="#06B6D4" fill="url(#g1)" strokeWidth={2}/>
+                <Area type="monotone" dataKey="mutations" stroke="#8B5CF6" fill="url(#g2)" strokeWidth={2}/>
+                <Legend/>
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="glass p-6 rounded-2xl">
+            <h3 className="font-semibold mb-4">Base Composition</h3>
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie data={dashData.baseDist} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3}>
+                  {dashData.baseDist.map((d, i) => <Cell key={i} fill={d.color}/>)}
+                </Pie>
+                <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8 }}/>
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="flex justify-around text-xs">
+              {dashData.baseDist.map(d => (
+                <div key={d.name} className="text-center">
+                  <div className="font-mono font-bold" style={{color: d.color}}>{d.name}</div>
+                  <div className="text-slate-500">{d.value}%</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid lg:grid-cols-2 gap-6 mb-6">
+          <div className="glass p-6 rounded-2xl">
+            <h3 className="font-semibold mb-4">Top Searched Patterns</h3>
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={dashData.topPatterns} layout="vertical">
+                <CartesianGrid stroke="#1e293b" strokeDasharray="3 3"/>
+                <XAxis type="number" stroke="#64748b"/>
+                <YAxis dataKey="pattern" type="category" stroke="#64748b" width={80} tick={{fontFamily:'JetBrains Mono'}}/>
+                <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8 }}/>
+                <Bar dataKey="count" fill="#8B5CF6" radius={[0,8,8,0]}/>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="glass p-6 rounded-2xl">
+            <h3 className="font-semibold mb-4">Algorithm Efficiency Score</h3>
+            <ResponsiveContainer width="100%" height={240}>
+              <RadarChart data={dashData.efficiency}>
+                <PolarGrid stroke="#1e293b"/>
+                <PolarAngleAxis dataKey="algo" stroke="#94a3b8"/>
+                <PolarRadiusAxis stroke="#475569"/>
+                <Radar name="Score" dataKey="score" stroke="#06B6D4" fill="#06B6D4" fillOpacity={0.4}/>
+                <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8 }}/>
+              </RadarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="glass p-6 rounded-2xl">
+          <h3 className="font-semibold mb-4">Search History (this session)</h3>
+          {history.length === 0 ? (
+            <div className="text-sm text-slate-500 text-center py-6">No searches yet. Run an analysis from the DNA Search page!</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase tracking-widest text-slate-500 border-b border-slate-800/60">
+                    <th className="py-2 px-3">Pattern</th>
+                    <th className="py-2 px-3">DNA Length</th>
+                    <th className="py-2 px-3">Matches</th>
+                    <th className="py-2 px-3">Time (ms)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.slice().reverse().map((h, i) => (
+                    <tr key={i} className="border-b border-slate-800/40 hover:bg-slate-800/30 font-mono">
+                      <td className="py-2 px-3 text-cyan-400">{h.pattern}</td>
+                      <td className="py-2 px-3">{h.dnaLen}</td>
+                      <td className="py-2 px-3 text-purple-400">{h.matches}</td>
+                      <td className="py-2 px-3 text-emerald-400">{h.time.toFixed(3)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ============================================================
+   ABOUT PAGE
+   ============================================================ */
+const AboutPage = () => (
+  <div className="pt-28 pb-20 min-h-screen relative bg-grid">
+    <div className="absolute top-40 left-1/3 w-96 h-96 bg-cyan-500/10 blur-[100px] rounded-full"/>
+    <div className="relative max-w-5xl mx-auto px-4 sm:px-6">
+      <SectionTitle eyebrow="The Project" title="About GeneTrace" subtitle="Bridging algorithms and biology — a college DAA project taken to startup-grade quality."/>
+
+      <div className="grid md:grid-cols-2 gap-6 mb-12">
+        <div className="glass p-6 rounded-2xl">
+          <div className="text-3xl mb-3">🧬</div>
+          <h3 className="font-semibold text-lg mb-2">What is DNA?</h3>
+          <p className="text-sm text-slate-400 leading-relaxed">DNA (Deoxyribonucleic acid) is the molecule carrying genetic instructions for the development and functioning of all known organisms. It's built from four bases: Adenine (A), Thymine (T), Guanine (G), and Cytosine (C).</p>
+        </div>
+        <div className="glass p-6 rounded-2xl">
+          <div className="text-3xl mb-3">⚡</div>
+          <h3 className="font-semibold text-lg mb-2">Horspool Algorithm</h3>
+          <p className="text-sm text-slate-400 leading-relaxed">A 1980 string-matching algorithm by Nigel Horspool — a simplification of Boyer-Moore using a single bad-character shift table. Runs in <span className="font-mono text-cyan-400">O(nm)</span> worst case but typically <span className="font-mono text-cyan-400">O(n/m)</span> in practice.</p>
+        </div>
+        <div className="glass p-6 rounded-2xl">
+          <div className="text-3xl mb-3">🔬</div>
+          <h3 className="font-semibold text-lg mb-2">Bioinformatics</h3>
+          <p className="text-sm text-slate-400 leading-relaxed">An interdisciplinary field combining biology, computer science, math, and statistics to analyze biological data — especially DNA, RNA, and protein sequences.</p>
+        </div>
+        <div className="glass p-6 rounded-2xl">
+          <div className="text-3xl mb-3">🎯</div>
+          <h3 className="font-semibold text-lg mb-2">Project Goals</h3>
+          <p className="text-sm text-slate-400 leading-relaxed">Demonstrate string-matching algorithms in a real-world domain (genomics), visualize algorithmic behavior, and benchmark Horspool against naive matching for a complete DAA showcase.</p>
+        </div>
+      </div>
+
+      <div className="glass p-8 rounded-2xl mb-8">
+        <h3 className="font-display text-2xl font-bold mb-6 text-center">How Horspool Works — Visual Steps</h3>
+        <div className="grid md:grid-cols-4 gap-4">
+          {[
+            { n: 1, t: 'Preprocess', d: 'Build a shift table from the pattern. For each character, store how far we\'d shift on a mismatch.' },
+            { n: 2, t: 'Align', d: 'Place the pattern at the start of the text. The last character of the pattern aligns with text[m-1].' },
+            { n: 3, t: 'Compare', d: 'Match from right to left. If all match → found! If not, look at the text character aligned with the pattern\'s tail.' },
+            { n: 4, t: 'Shift', d: 'Slide the pattern forward by the shift-table value of that text character. Repeat until end of text.' },
+          ].map(s => (
+            <div key={s.n} className="text-center">
+              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center font-bold text-lg shadow-lg shadow-cyan-500/30">{s.n}</div>
+              <div className="font-semibold mb-1">{s.t}</div>
+              <div className="text-xs text-slate-400 leading-relaxed">{s.d}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="glass p-8 rounded-2xl mb-8">
+        <h3 className="font-display text-2xl font-bold mb-4">Real-World Applications</h3>
+        <div className="grid sm:grid-cols-2 gap-3 text-sm">
+          {[
+            '🧪 Gene identification in genome assemblies',
+            '🩺 Disease marker screening (BRCA, TP53)',
+            '💊 Drug target discovery in protein sequences',
+            '🦠 Pathogen detection in microbial sequencing',
+            '🌱 GMO trait detection in agricultural genomics',
+            '🧬 Forensic DNA matching',
+            '📊 RNA-seq pattern analysis',
+            '🔍 Plagiarism detection (text version)',
+          ].map((a,i) => (
+            <div key={i} className="flex items-center gap-2 p-3 bg-slate-950/40 rounded-lg border border-slate-800/40">{a}</div>
+          ))}
+        </div>
+      </div>
+
+      <div className="glass p-8 rounded-2xl text-center">
+        <h3 className="font-display text-xl font-bold mb-3">Tech Stack</h3>
+        <div className="flex flex-wrap justify-center gap-2 text-xs font-mono">
+          {['React 18', 'Vite', 'Tailwind CSS', 'Framer Motion', 'Recharts', 'Node.js', 'Express', 'MongoDB Atlas', 'JWT Auth', 'Vercel'].map(t => (
+            <span key={t} className="px-3 py-1.5 rounded-full bg-slate-800/60 border border-slate-700">{t}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+/* ============================================================
+   AUTH PAGE
+   ============================================================ */
+const AuthPage = ({ onLogin }) => {
+  const [mode, setMode] = useState('login');
+  const [form, setForm] = useState({ name:'', email:'', password:'' });
+
+  const submit = e => {
+    e.preventDefault();
+    onLogin({ name: form.name || form.email.split('@')[0] || 'Researcher', email: form.email });
+  };
+
+  return (
+    <div className="pt-28 pb-20 min-h-screen flex items-center bg-grid relative">
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-cyan-500/20 blur-[100px] rounded-full"/>
+      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/20 blur-[100px] rounded-full"/>
+      <ParticleField/>
+
+      <div className="relative max-w-md mx-auto w-full px-4">
+        <div className="glass-strong p-8 rounded-3xl">
+          <div className="flex justify-center mb-6"><AnimatedDNA size={80}/></div>
+          <h2 className="font-display text-2xl font-bold text-center mb-1">{mode === 'login' ? 'Welcome back' : 'Create your account'}</h2>
+          <p className="text-sm text-slate-400 text-center mb-6">{mode === 'login' ? 'Access your DNA analyses' : 'Join the GeneTrace lab'}</p>
+
+          <form onSubmit={submit} className="space-y-4">
+            {mode === 'register' && (
+              <div>
+                <label className="text-xs uppercase tracking-widest text-slate-500 block mb-1.5">Full Name</label>
+                <input type="text" required value={form.name} onChange={e=>setForm({...form, name:e.target.value})}
+                  className="w-full glass rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50" placeholder="Jane Researcher"/>
+              </div>
+            )}
+            <div>
+              <label className="text-xs uppercase tracking-widest text-slate-500 block mb-1.5">Email</label>
+              <input type="email" required value={form.email} onChange={e=>setForm({...form, email:e.target.value})}
+                className="w-full glass rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50" placeholder="researcher@lab.io"/>
+            </div>
+            <div>
+              <label className="text-xs uppercase tracking-widest text-slate-500 block mb-1.5">Password</label>
+              <input type="password" required value={form.password} onChange={e=>setForm({...form, password:e.target.value})}
+                className="w-full glass rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50" placeholder="••••••••"/>
+            </div>
+            <button type="submit" className="btn-primary w-full py-3 rounded-xl font-semibold">
+              {mode === 'login' ? 'Sign In' : 'Create Account'}
+            </button>
+          </form>
+
+          <div className="text-center text-sm text-slate-400 mt-5">
+            {mode === 'login' ? "Don't have an account? " : "Already have one? "}
+            <button onClick={() => setMode(mode === 'login' ? 'register' : 'login')} className="text-cyan-400 hover:underline font-medium">
+              {mode === 'login' ? 'Sign up' : 'Sign in'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
+const Footer = () => (
+  <footer className="relative border-t border-slate-800/60 py-10 bg-slate-950/40">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 grid md:grid-cols-3 gap-6 text-sm">
+      <div>
+        <Logo/>
+        <p className="text-slate-500 mt-3 text-xs leading-relaxed">A DAA + Bioinformatics project showcasing Horspool string matching applied to DNA pattern detection.</p>
+      </div>
+      <div>
+        <div className="text-xs uppercase tracking-widest text-slate-400 font-semibold mb-3">Features</div>
+        <ul className="space-y-1.5 text-slate-500">
+          <li>DNA Pattern Search</li>
+          <li>Mutation Detection</li>
+          <li>Algorithm Visualizer</li>
+          <li>Analytics Dashboard</li>
+        </ul>
+      </div>
+      <div>
+        <div className="text-xs uppercase tracking-widest text-slate-400 font-semibold mb-3">Algorithm</div>
+        <ul className="space-y-1.5 text-slate-500">
+          <li>Horspool (1980)</li>
+          <li>Boyer-Moore family</li>
+          <li>O(n/m) avg-case</li>
+          <li>O(nm) worst-case</li>
+        </ul>
+      </div>
+    </div>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 mt-8 pt-6 border-t border-slate-800/40 text-xs text-slate-600 text-center">
+      © 2026 GeneTrace Lab — Built with Horspool, React, and a lot of caffeine.
+    </div>
+  </footer>
+);
+
+/* ============================================================
+   ROOT APP
+   ============================================================ */
+function App() {
+  const [page, setPage] = useState('home');
+  const [user, setUser] = useState(null);
+  const [history, setHistory] = useState([]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [page]);
+
+  const addHistory = entry => setHistory(prev => [...prev, entry]);
+
+  return (
+    <div className="min-h-screen">
+      <Navbar page={page} setPage={setPage} user={user} onLogout={() => setUser(null)}/>
+      <AnimateP mode="wait">
+        <Motion.div key={page} initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} exit={{opacity:0}} transition={{duration:0.3}}>
+          {page === 'home' && <HomePage setPage={setPage}/>}
+          {page === 'search' && <SearchPage addHistory={addHistory}/>}
+          {page === 'visualize' && <VisualizationPage/>}
+          {page === 'mutation' && <MutationPage/>}
+          {page === 'analytics' && <AnalyticsPage history={history}/>}
+          {page === 'about' && <AboutPage/>}
+          {page === 'auth' && <AuthPage onLogin={(u) => { setUser(u); setPage('home'); }}/>}
+        </Motion.div>
+      </AnimateP>
+      <Footer/>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
